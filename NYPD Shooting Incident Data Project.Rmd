@@ -1,0 +1,117 @@
+---
+title: "NYPD Shooting Incident Data Project"
+author: "Chase Vetruba"
+date: '2022-06-06'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Description
+List of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year.
+
+This is a breakdown of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year. This data is manually extracted every quarter and reviewed by the Office of Management Analysis and Planning before being posted on the NYPD website. Each record represents a shooting incident in NYC and includes information about the event, the location and time of occurrence. In addition, information related to suspect and victim demographics is also included. This data can be used by the public to explore the nature of shooting/criminal activity. Please refer to the attached data footnotes for additional information about this dataset.
+
+## Data
+```{r}
+url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+incident_data <- read_csv(url, show_col_types = FALSE)
+demographic_url <- "https://data.cityofnewyork.us/api/views/w3c6-35wg/rows.csv?accessType=DOWNLOAD"
+summary(incident_data)
+
+```
+
+## Tidy
+```{r}
+incident_data <- incident_data %>%
+    select(-c(X_COORD_CD,Y_COORD_CD,Latitude,Longitude,Lon_Lat))
+```
+
+## Victim Statistics
+Rows where the variable in question is missing will be ignored. Below, we have the distribution of incidents with respect to variables related to the reported victim.
+
+### Victim By Race
+```{r}
+ggplot(data = incident_data) +
+    geom_bar(mapping = aes(x = `VIC_RACE`)) +
+    theme(axis.text.x = element_text(size = 3))
+```
+
+### Victim By Age
+```{r}
+ggplot(data = incident_data) +
+    geom_bar(mapping = aes(x = `VIC_AGE_GROUP`))
+```
+
+### Victim By Race & Age
+```{r}
+# ggplot(data = incident_data) +
+#     geom_bar(mapping = aes(x = `Subject Race`, fill = Age), position = "dodge")
+
+ggplot(data = incident_data) +
+    geom_bar(mapping = aes(x = `VIC_AGE_GROUP`)) +
+    facet_wrap(~ `VIC_RACE`) +
+    theme(axis.text.x = element_text(size = 5))
+```
+
+### Victim Murdered vs Not
+```{r}
+ggplot(data = incident_data) +
+    geom_bar(mapping = aes(x = `STATISTICAL_MURDER_FLAG`))
+```
+
+### Victim Murdered by Race
+```{r}
+ggplot(data = incident_data) +
+    geom_bar(mapping = aes(x = `STATISTICAL_MURDER_FLAG`)) +
+    facet_wrap(~ `VIC_RACE`)
+```
+
+### Victim Sex
+```{r}
+ggplot(data = incident_data) +
+    geom_bar(mapping = aes(x = `VIC_SEX`))
+```
+
+## Demographic Data
+```{r}
+american_indian <- 0.44
+asian <- 14.29
+black <- 21.4
+black_hispanic <- 2.4
+other_unkown <- 3.39 
+white <- 31.9
+white_hispanic <- 9.39
+
+race <- c("american indian","asian","black","black hispanic","other/unkown","white","white hispanic")
+population_percentage <- c(0.44,14.29,21.4,2.4,3.39,31.9,9.39) / 100
+population_demographic <- tibble(race, population_percentage)
+```
+
+## Analysis
+We model the ratio of incidents reported by race versus the actual population of NYC by race. 
+
+```{r}
+by_race <- incident_data %>% 
+    count(VIC_RACE) 
+
+by_race <- by_race %>%
+    mutate(by_race, actual_percentage = n / sum(by_race$n)) %>%
+    mutate(by_race, expected_percentage = population_percentage) %>%
+    mutate(by_race, ratio_actual_over_expected = actual_percentage / expected_percentage)
+
+ggplot(data = by_race) +
+    geom_bar(mapping = aes(x = VIC_RACE, y = ratio_actual_over_expected), stat = "identity") +
+    theme(axis.text.x = element_text(size = 3))
+
+```
+
+From this data, we can see that Black and Black Hispanic victims are over represented in this report by factors of 3.34 and 4.05 respectively. Also, all other races are each underrepresented by a factor less than .10, except White Hispanic. I use the words "over represented" and "under represented" only in relation to what would be a directly proportional representation with respect to the population figures gathered from the web source that was loaded at the beginning of this document.
+
+## Bias
+The main data bias is that the shooting report didn't contain population data. I used demographic data from the most recent census. Therefore, the demographic data will be skewed towards the most recent population, even though this report goes back many years.
